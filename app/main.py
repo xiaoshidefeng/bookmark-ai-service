@@ -1,0 +1,58 @@
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.ai_service import generate_plan
+from app.schemas import BookmarkPlanRequest, BookmarkPlanResponse, UsageResponse
+from app.usage_service import DailyLimitExceededError, enforce_daily_limit, get_usage, init_usage_db
+
+
+app = FastAPI(title="bookmark-ai-service")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+async def startup() -> None:
+    await init_usage_db()
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.get("/api/bookmarks/usage", response_model=UsageResponse)
+async def get_bookmark_usage(clientId: str) -> UsageResponse:
+    snapshot = await get_usage(clientId)
+    return UsageResponse(
+        limit=snapshot.limit,
+        used=snapshot.used,
+        remaining=snapshot.remaining,
+        date=snapshot.date,
+    )
+
+
+@app.post("/api/bookmarks/plan", response_model=BookmarkPlanResponse)
+async def create_bookmark_plan(payload: BookmarkPlanRequest) -> BookmarkPlanResponse:
+    try:
+        await enforce_daily_limit(payload.clientId)
+        return await generate_plan(payload)
+    except DailyLimitExceededError as error:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "DAILY_LIMIT_EXCEEDED",
+                "message": "今日 AI 整理次数已达上限",
+                "limit": error.snapshot.limit,
+                "used": error.snapshot.used,
+                "remaining": error.snapshot.remaining,
+                "date": error.snapshot.date,
+            },
+        ) from error
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
