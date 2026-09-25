@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 ActionType = Literal[
@@ -62,3 +62,31 @@ class UsageResponse(BaseModel):
     used: int
     remaining: int
     date: str
+
+
+class FeedbackRequest(BaseModel):
+    clientId: str = Field(min_length=1, max_length=128)
+    content: str = Field(min_length=1, max_length=2000)
+    contact: Optional[str] = Field(default=None, max_length=120)
+    locale: Optional[str] = Field(default=None, max_length=16)
+    appVersion: Optional[str] = Field(default=None, max_length=32)
+
+    @field_validator("content")
+    @classmethod
+    def strip_content(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("content must not be blank")
+        return stripped
+
+    @field_validator("contact", "locale", "appVersion")
+    @classmethod
+    def blank_to_none(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return value.strip() or None
+
+
+class FeedbackResponse(BaseModel):
+    status: str
+    id: int

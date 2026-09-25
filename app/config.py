@@ -14,6 +14,7 @@ class Settings:
     model: str = os.getenv("AI_MODEL", "deepseek-v3.1")
     db_path: str = os.getenv("SQLITE_DB_PATH", "data/bookmark_ai.sqlite3")
     daily_limit: int = int(os.getenv("DAILY_REQUEST_LIMIT", "8"))
+    feedback_daily_limit: int = int(os.getenv("FEEDBACK_DAILY_LIMIT", "5"))
     host: str = os.getenv("HOST", "127.0.0.1")
     port: int = int(os.getenv("PORT", "8000"))
 
